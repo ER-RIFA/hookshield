@@ -1,10 +1,11 @@
 import { useState, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Zap, ChevronLeft, ChevronRight, X, Copy, Check } from 'lucide-react';
+import { Plus, Zap, ChevronLeft, ChevronRight, X, Copy, Check, ArrowRight } from 'lucide-react';
 import { LoadingState } from '../../components/LoadingState';
 import { eventApi } from '../../services/api';
 import type { Event } from '../../types';
 import { formatDistanceToNow, format } from 'date-fns';
+import { Link } from 'react-router-dom';
 
 // ── Create event modal ────────────────────────────────────────
 function CreateEventModal({ onClose }: { onClose: () => void }) {
@@ -220,6 +221,12 @@ export function EventsPage() {
                             {format(new Date(ev.createdAt), 'MMM d, yyyy HH:mm:ss')}
                           </div>
                           <div className="code-block">{JSON.stringify(ev.payload, null, 2)}</div>
+                          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+                            <Link to="/deliveries" className="btn btn-secondary btn-sm">
+                              <span>Trace in Delivery Queue</span>
+                              <ArrowRight size={13} />
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     )}

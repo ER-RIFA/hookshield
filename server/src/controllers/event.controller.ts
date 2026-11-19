@@ -39,8 +39,8 @@ export async function listEvents(req: Request, res: Response, next: NextFunction
 export async function getEvent(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const ownerId = (req as any).ownerId;
-    const event = await eventService.getEvent(req.params.id as string, ownerId);
-    res.json({ success: true, data: event });
+    const result = await eventService.getEvent(req.params.id as string, ownerId);
+    res.json({ success: true, data: result.event, deliveries: result.deliveries });
   } catch (err) {
     next(err);
   }

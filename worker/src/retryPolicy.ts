@@ -21,8 +21,12 @@ export function shouldRetry(statusCode: number | undefined, error: Error | undef
   if (error) return true;
   if (!statusCode) return true;
   if (statusCode >= 200 && statusCode < 300) return false;
-  if (statusCode === 400) return false;
-  if (statusCode === 401) return false;
-  if (statusCode === 403) return false;
+  if (statusCode >= 300 && statusCode < 400) return false; // 3xx Redirects rejected for SSRF protection
+  if (statusCode === 400) return false; // Bad Request (invalid schema)
+  if (statusCode === 401) return false; // Unauthorized
+  if (statusCode === 403) return false; // Forbidden
+  if (statusCode === 404) return false; // Not Found
+  if (statusCode === 410) return false; // Gone
+  if (statusCode === 422) return false; // Unprocessable Entity
   return true;
 }

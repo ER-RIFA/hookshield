@@ -150,7 +150,11 @@ export async function processDelivery(delivery: IDelivery): Promise<void> {
     delivery.lastError = `SSRF blocked: destination is a private/internal address`;
   } else if (!shouldRetry(statusCode, errorCategory ? new Error(errorCategory) : undefined) || isExhausted(newAttempts)) {
     delivery.status = 'failed';
-    delivery.lastError = errorCategory || `HTTP ${statusCode}`;
+    if (statusCode && statusCode >= 300 && statusCode < 400) {
+      delivery.lastError = `SSRF protection: HTTP ${statusCode} redirects are not permitted`;
+    } else {
+      delivery.lastError = errorCategory || `HTTP ${statusCode}`;
+    }
     delivery.lastStatusCode = statusCode;
   } else {
     delivery.status = 'retrying';

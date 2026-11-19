@@ -3,6 +3,7 @@ import { Delivery } from '../models/Delivery';
 import { AppError } from '../middleware/errorHandler';
 import { encryptSecret, decryptSecret } from '../utils/encryption';
 import { buildSignatureHeader } from '../utils/signPayload';
+import { validateDestination } from '../utils/destinationValidator';
 import crypto from 'crypto';
 import http from 'http';
 import https from 'https';
@@ -41,6 +42,12 @@ function toSafe(endpoint: IEndpoint): SafeEndpoint {
 }
 
 export async function createEndpoint(input: CreateEndpointInput): Promise<{ endpoint: SafeEndpoint; secret: string }> {
+  try {
+    await validateDestination(input.url);
+  } catch (err: any) {
+    throw new AppError(400, `Invalid destination URL: ${err.message}`);
+  }
+
   const secret = input.secret || `whsec_${crypto.randomBytes(24).toString('hex')}`;
   const encryptedSecret = encryptSecret(secret);
 
@@ -83,6 +90,15 @@ export async function updateEndpoint(
 ): Promise<SafeEndpoint> {
   const endpoint = await Endpoint.findOne({ _id: id, ownerId });
   if (!endpoint) throw new AppError(404, 'Endpoint not found');
+
+  if (updates.url) {
+    try {
+      await validateDestination(updates.url);
+    } catch (err: any) {
+      throw new AppError(400, `Invalid destination URL: ${err.message}`);
+    }
+  }
+
   Object.assign(endpoint, updates);
   await endpoint.save();
   return toSafe(endpoint);

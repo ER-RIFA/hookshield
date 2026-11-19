@@ -12,7 +12,7 @@
     "build:worker": "npm --prefix worker run build",
     "build:client": "npm --prefix client run build",
     "build": "npm run build:server && npm run build:worker && npm run build:client",
-    "test": "node tests/verify.js"
+    "test": "node tests/verify.js && node tests/integration.test.js"
   },
   "keywords": [
     "webhooks",

@@ -1,6 +1,7 @@
+import mongoose from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
 import { Event, IEvent } from '../models/Event';
-import { Delivery } from '../models/Delivery';
+import { Delivery, IDelivery } from '../models/Delivery';
 import { IdempotencyKey } from '../models/IdempotencyKey';
 import { findMatchingEndpoints } from './endpoint.service';
 import { AppError } from '../middleware/errorHandler';
@@ -21,27 +22,9 @@ export async function createEvent(input: CreateEventInput): Promise<{ event: IEv
     throw new AppError(413, `Payload too large (max ${MAX_PAYLOAD_BYTES} bytes)`);
   }
 
-  // Idempotency deduplication
-  if (input.idempotencyKey) {
-    const existing = await IdempotencyKey.findOne({ ownerId: input.ownerId, key: input.idempotencyKey });
-    if (existing) {
-      const event = await Event.findOne({ eventId: existing.eventId });
-      if (event) {
-        return { event, deliveriesCreated: 0, duplicate: true };
-      }
-    }
-  }
-
   const eventId = uuidv4();
-  const event = new Event({
-    eventId,
-    ownerId: input.ownerId,
-    type: input.type,
-    payload: input.payload,
-  });
-  await event.save();
 
-  // Store idempotency key with 24-hour expiry
+  // Atomic idempotency reservation to eliminate race conditions under concurrent duplicates
   if (input.idempotencyKey) {
     try {
       await IdempotencyKey.create({
@@ -50,10 +33,33 @@ export async function createEvent(input: CreateEventInput): Promise<{ event: IEv
         eventId,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       });
-    } catch {
-      // Concurrent duplicate — race condition handled; continue
+    } catch (err: any) {
+      if (err.code === 11000) {
+        // Unique compound index collision: Another request with this key already won or is in progress
+        const existingRecord = await IdempotencyKey.findOne({ ownerId: input.ownerId, key: input.idempotencyKey });
+        if (existingRecord) {
+          // Poll briefly in case winning thread is currently saving
+          let existingEvent = await Event.findOne({ eventId: existingRecord.eventId });
+          if (!existingEvent) {
+            await new Promise((resolve) => setTimeout(resolve, 80));
+            existingEvent = await Event.findOne({ eventId: existingRecord.eventId });
+          }
+          if (existingEvent) {
+            return { event: existingEvent, deliveriesCreated: 0, duplicate: true };
+          }
+        }
+      }
+      throw err;
     }
   }
+
+  const event = new Event({
+    eventId,
+    ownerId: input.ownerId,
+    type: input.type,
+    payload: input.payload,
+  });
+  await event.save();
 
   // Find matching endpoints and create delivery jobs
   const matchingEndpoints = await findMatchingEndpoints(input.ownerId, input.type);
@@ -85,8 +91,23 @@ export async function listEvents(
   return { data, total, page, pages: Math.ceil(total / limit) };
 }
 
-export async function getEvent(eventId: string, ownerId: string): Promise<IEvent> {
-  const event = await Event.findOne({ eventId, ownerId });
+export async function getEvent(
+  idOrEventId: string,
+  ownerId: string
+): Promise<{ event: IEvent; deliveries: IDelivery[] }> {
+  const isObjectId = mongoose.Types.ObjectId.isValid(idOrEventId);
+  const event = await Event.findOne({
+    $or: [
+      { eventId: idOrEventId },
+      ...(isObjectId ? [{ _id: new mongoose.Types.ObjectId(idOrEventId) }] : []),
+    ],
+    ownerId,
+  });
   if (!event) throw new AppError(404, 'Event not found');
-  return event;
+
+  const deliveries = await Delivery.find({ eventId: event._id, ownerId })
+    .populate('endpointId', 'url description')
+    .sort({ createdAt: -1 });
+
+  return { event, deliveries };
 }

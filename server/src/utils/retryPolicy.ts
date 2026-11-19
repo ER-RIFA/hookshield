@@ -35,8 +35,12 @@ export function shouldRetry(statusCode: number | undefined, error: Error | undef
   if (error) return true;              // network errors are retried
   if (!statusCode) return true;
   if (statusCode >= 200 && statusCode < 300) return false; // success
-  if (statusCode === 400) return false; // bad request — our fault, don't retry
-  if (statusCode === 401) return false;
-  if (statusCode === 403) return false;
-  return true;                          // 4xx (not above), 5xx → retry
+  if (statusCode >= 300 && statusCode < 400) return false; // 3xx Redirects rejected for SSRF protection
+  if (statusCode === 400) return false; // bad request — schema error, don't retry
+  if (statusCode === 401) return false; // Unauthorized
+  if (statusCode === 403) return false; // Forbidden
+  if (statusCode === 404) return false; // Not Found
+  if (statusCode === 410) return false; // Gone
+  if (statusCode === 422) return false; // Unprocessable Entity
+  return true;                          // 429, 5xx → retry
 }
