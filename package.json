@@ -1,0 +1,27 @@
+{
+  "name": "hookshield",
+  "version": "1.0.0",
+  "description": "Production-grade Webhook Reliability Platform with exponential backoff, cryptographic verification, SSRF protection, and real-time dashboard",
+  "private": true,
+  "scripts": {
+    "dev:server": "npm --prefix server run dev",
+    "dev:worker": "npm --prefix worker run dev",
+    "dev:client": "npm --prefix client run dev",
+    "receiver": "node receiver-demo/server.js",
+    "build:server": "npm --prefix server run build",
+    "build:worker": "npm --prefix worker run build",
+    "build:client": "npm --prefix client run build",
+    "build": "npm run build:server && npm run build:worker && npm run build:client",
+    "test": "node tests/verify.js"
+  },
+  "keywords": [
+    "webhooks",
+    "reliability",
+    "retry-queue",
+    "ssrf-protection",
+    "hmac-sha256",
+    "worker"
+  ],
+  "author": "",
+  "license": "MIT"
+}

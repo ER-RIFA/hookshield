@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: hookshield-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: hookshield
+    volumes:
+      - mongo_data:/data/db
+
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: hookshield-api
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - MONGODB_URI=mongodb://mongodb:27017/hookshield
+      - CLIENT_URL=http://localhost:5173
+      - WEBHOOK_SECRET_ENCRYPTION_KEY=dev-only-key-change-this-before-any-real-deployment
+      - NODE_ENV=development
+    depends_on:
+      - mongodb
+
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    container_name: hookshield-worker
+    restart: unless-stopped
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/hookshield
+      - WEBHOOK_SECRET_ENCRYPTION_KEY=dev-only-key-change-this-before-any-real-deployment
+      - WORKER_POLL_INTERVAL_MS=5000
+      - DELIVERY_TIMEOUT_MS=10000
+      - NODE_ENV=development
+    depends_on:
+      - mongodb
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: hookshield-client
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
+  receiver:
+    image: node:20-alpine
+    container_name: hookshield-receiver
+    working_dir: /app
+    volumes:
+      - ./receiver-demo:/app
+    command: sh -c "npm install && node server.js"
+    ports:
+      - "4000:4000"
+    environment:
+      - RECEIVER_PORT=4000
+      - FORCE_STATUS=0
+      - DELAY_MS=0
+      - FAIL_COUNT=0
+
+volumes:
+  mongo_data:
